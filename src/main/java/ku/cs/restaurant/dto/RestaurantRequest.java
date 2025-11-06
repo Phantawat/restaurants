@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Setter
+@Getter
 public class RestaurantRequest {
 
     @Getter
@@ -19,5 +20,6 @@ public class RestaurantRequest {
 
     @NotBlank(message = "Location is mandatory")
     private String location;
+
 
 }
