@@ -1,15 +1,16 @@
 package ku.cs.restaurant.service;
 
 
+import jakarta.persistence.EntityNotFoundException;
 import ku.cs.restaurant.dto.RestaurantRequest;
 import ku.cs.restaurant.entity.Restaurant;
 import ku.cs.restaurant.repository.RestaurantRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import jakarta.persistence.EntityExistsException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,12 +26,14 @@ public class RestaurantService {
     public RestaurantService(RestaurantRepository repository) {
         this.repository = repository;
     }
-    public List<Restaurant> getAll() {
-        return repository.findAll();
+    public Page<Restaurant> getRestaurantsPage(PageRequest pageRequest) {
+        return repository.findAll(pageRequest);
     }
 
 
     public Restaurant create(RestaurantRequest request) {
+        if (repository.existsByName(request.getName()))
+            throw new EntityExistsException("Restaurant name already exists");
         Restaurant restaurant = new Restaurant();
         restaurant.setName(request.getName());
         restaurant.setRating(request.getRating());
@@ -62,16 +65,15 @@ public class RestaurantService {
         return record;
     }
 
-
     public Restaurant getRestaurantById(UUID id) {
-        return repository.findById(id).get();
+        return repository.findById(id).orElseThrow(() ->
+                new EntityNotFoundException("Restaurant not found"));
     }
-
 
     public Restaurant getRestaurantByName(String name) {
-        return repository.findByName(name);
+        return repository.findByName(name).orElseThrow(() ->
+                new EntityNotFoundException("Restaurant not found"));
     }
-
 
     public List<Restaurant> getRestaurantByLocation(String location) {
         return repository.findByLocation(location);
