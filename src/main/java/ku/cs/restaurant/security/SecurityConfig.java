@@ -1,6 +1,6 @@
 package ku.cs.restaurant.security;
 
-import ku.cs.restaurant.security.JwtAuthFilter;
+import ku.cs.restaurant.security.JwtCookieAuthFilter;
 import ku.cs.restaurant.security.UnauthorizedEntryPointJwt;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +14,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.http.HttpMethod;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.Arrays;
 
 /**
  * Security configuration for JWT Authentication & Role-based Authorization.
@@ -21,11 +25,11 @@ import org.springframework.http.HttpMethod;
 @Configuration
 public class SecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
+    private final JwtCookieAuthFilter jwtCookieAuthFilter;
     private final UnauthorizedEntryPointJwt unauthorizedHandler;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, UnauthorizedEntryPointJwt unauthorizedHandler) {
-        this.jwtAuthFilter = jwtAuthFilter;
+    public SecurityConfig(JwtCookieAuthFilter jwtCookieAuthFilter, UnauthorizedEntryPointJwt unauthorizedHandler) {
+        this.jwtCookieAuthFilter = jwtCookieAuthFilter;
         this.unauthorizedHandler = unauthorizedHandler;
     }
 
@@ -35,6 +39,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Enable CORS with our configuration
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 // Disable CSRF for stateless JWT
                 .csrf(csrf -> csrf.disable())
 
@@ -47,7 +54,7 @@ public class SecurityConfig {
                 // Define endpoint access rules
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
-                        .requestMatchers("/api/auth/**", "/h2-console/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/auth/google", "/h2-console/**").permitAll()
 
                         // Restaurant access rules
                         .requestMatchers(HttpMethod.GET, "/api/restaurants/**")
@@ -69,10 +76,27 @@ public class SecurityConfig {
         // Allow H2 console (disable frame options)
         http.headers(headers -> headers.frameOptions().disable());
 
-        // Register JWT filter before UsernamePasswordAuthenticationFilter
-        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        // Register JWT Cookie filter before UsernamePasswordAuthenticationFilter
+        http.addFilterBefore(jwtCookieAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * CORS configuration to allow credentials from frontend
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("https://localhost:3001"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(Arrays.asList("Set-Cookie"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     /**

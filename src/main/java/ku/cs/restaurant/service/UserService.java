@@ -31,6 +31,10 @@ public class UserService {
         return userRepository.existsByUsername(username);
     }
 
+    public User findByUsername(String username) {
+        return userRepository.findByUsername(username);
+    }
+
 
     public void createUser(SignupRequest request) {
         User dao = new User();
@@ -42,5 +46,22 @@ public class UserService {
 
 
         userRepository.save(dao);
+    }
+
+    public User findOrCreateGoogleUser(String email, String name) {
+        User user = userRepository.findByUsername(email);
+
+        if (user == null) {
+            // Create new user for first-time Google login
+            User newUser = new User();
+            newUser.setUsername(email);
+            newUser.setName(name);
+            newUser.setPassword(encoder.encode("NO_PASSWORD")); // Required by Spring Security
+            newUser.setRole("ROLE_USER");
+            newUser.setCreatedAt(Instant.now());
+            user = userRepository.save(newUser);
+        }
+
+        return user;
     }
 }

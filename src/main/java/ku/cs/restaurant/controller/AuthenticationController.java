@@ -1,22 +1,33 @@
 package ku.cs.restaurant.controller;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import ku.cs.restaurant.controller.GlobalExceptionHandler.*;
+import ku.cs.restaurant.dto.GoogleAuthRequest;
 import ku.cs.restaurant.dto.LoginRequest;
 import ku.cs.restaurant.dto.SignupRequest;
+import ku.cs.restaurant.dto.UserInfoResponse;
+import ku.cs.restaurant.entity.User;
 import ku.cs.restaurant.security.JwtUtil;
 import ku.cs.restaurant.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import java.util.Collections;
+import java.util.Map;
 
 
 @RestController
@@ -27,6 +38,9 @@ public class AuthenticationController {
     private AuthenticationManager authenticationManager;
     private JwtUtil jwtUtils;
 
+    @Value("${google.clientId}")
+    private String googleClientId;
+
     @Autowired
     public AuthenticationController(UserService userService,
                                     AuthenticationManager authenticationManager, JwtUtil jwtUtils) {
@@ -36,7 +50,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> authenticateUser(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<String> authenticateUser(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse response) {
 
         Authentication authentication =
                 authenticationManager.authenticate(
@@ -47,7 +63,15 @@ public class AuthenticationController {
                 );
         UserDetails userDetails =
                 (UserDetails) authentication.getPrincipal();
-        return ResponseEntity.ok(jwtUtils.generateToken(userDetails.getUsername()));
+
+        // Generate JWT token
+        String jwt = jwtUtils.generateToken(userDetails.getUsername());
+
+        // Create HttpOnly cookie (using proxy, so same origin)
+        response.setHeader("Set-Cookie",
+            String.format("token=%s; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Lax", jwt));
+
+        return ResponseEntity.ok("Login successful");
     }
 
     @PostMapping("/signup")
@@ -56,6 +80,94 @@ public class AuthenticationController {
             return new ResponseEntity<>("Error: Username is already taken!", HttpStatus.BAD_REQUEST);
         userService.createUser(request);
         return ResponseEntity.ok("User registered successfully!");
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserInfoResponse> getCurrentUser(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        String username = userDetails.getUsername();
+
+        // Get user from database to fetch name and role
+        User user = userService.findByUsername(username);
+
+        // Extract role (remove ROLE_ prefix if present for cleaner frontend usage)
+        String role = userDetails.getAuthorities().stream()
+                .findFirst()
+                .map(GrantedAuthority::getAuthority)
+                .orElse("");
+
+        UserInfoResponse response = new UserInfoResponse(username, user.getName(), role);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpServletRequest request, HttpServletResponse response) {
+        // Extract token from cookie
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("token".equals(cookie.getName())) {
+                    String token = cookie.getValue();
+                    // Invalidate token in the token store
+                    jwtUtils.invalidateToken(token);
+
+                    // Clear the cookie
+                    response.setHeader("Set-Cookie",
+                        "token=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None");
+                    break;
+                }
+            }
+        }
+
+        return ResponseEntity.ok("Logout successful");
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<?> authenticateWithGoogle(
+            @RequestBody GoogleAuthRequest request,
+            HttpServletResponse response) {
+        try {
+            // Verify Google ID token
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(), new GsonFactory())
+                    .setAudience(Collections.singletonList(googleClientId))
+                    .build();
+
+            GoogleIdToken idToken = verifier.verify(request.getCredential());
+            if (idToken == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Invalid Google ID token"));
+            }
+
+            // Extract user info from token
+            GoogleIdToken.Payload payload = idToken.getPayload();
+            String email = payload.getEmail();
+            String name = (String) payload.get("name");
+
+            // Find or create user
+            User user = userService.findOrCreateGoogleUser(email, name);
+
+            // Generate JWT token
+            String jwt = jwtUtils.generateToken(user.getUsername());
+
+            // Set HttpOnly cookie (using proxy, so same origin)
+            response.setHeader("Set-Cookie",
+                String.format("token=%s; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Lax", jwt));
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "Google login successful",
+                    "username", user.getUsername(),
+                    "name", user.getName()
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Google authentication failed: " + e.getMessage()));
+        }
     }
 
 }
