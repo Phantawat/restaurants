@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
+import './Restaurant.css';
 
 function RestaurantForm() {
   const [formData, setFormData] = useState({
@@ -35,35 +36,47 @@ function RestaurantForm() {
         navigate('/restaurant');
       }, 2000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create restaurant. Please try again.');
+      let errorMessage = 'Failed to create restaurant. Please try again.';
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (typeof err.response.data === 'object') {
+           // Check for 'message' property or join values
+           errorMessage = err.response.data.message || Object.values(err.response.data).join(', ');
+        }
+      }
+      setError(errorMessage);
       console.error('Create restaurant error:', err);
     }
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '50px auto', padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Add New Restaurant</h2>
+    <div className="form-page-container">
+      <div className="restaurant-header" style={{ marginBottom: '24px' }}>
+        <h2 style={{ margin: 0 }}>Add New Restaurant</h2>
         <button
           onClick={() => navigate('/restaurant')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
+          className="btn btn-secondary"
         >
           Back to List
         </button>
       </div>
 
+      {error && (
+        <div className="message message-error">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="message message-success">
+          {success}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '15px' }}>
-          <label htmlFor="name" style={{ display: 'block', marginBottom: '5px' }}>
-            Restaurant Name:
-          </label>
+        <div className="form-group">
+          <label htmlFor="name">Restaurant Name</label>
           <input
             type="text"
             id="name"
@@ -71,14 +84,13 @@ function RestaurantForm() {
             value={formData.name}
             onChange={handleChange}
             required
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            className="input-field"
+            placeholder="Enter restaurant name"
           />
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label htmlFor="rating" style={{ display: 'block', marginBottom: '5px' }}>
-            Rating (0-5):
-          </label>
+        <div className="form-group">
+          <label htmlFor="rating">Rating (0-5)</label>
           <input
             type="number"
             id="rating"
@@ -89,14 +101,13 @@ function RestaurantForm() {
             min="0"
             max="5"
             step="0.1"
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            className="input-field"
+            placeholder="e.g. 4.5"
           />
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label htmlFor="location" style={{ display: 'block', marginBottom: '5px' }}>
-            Location:
-          </label>
+        <div className="form-group">
+          <label htmlFor="location">Location</label>
           <input
             type="text"
             id="location"
@@ -104,36 +115,20 @@ function RestaurantForm() {
             value={formData.location}
             onChange={handleChange}
             required
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            className="input-field"
+            placeholder="Enter location"
           />
         </div>
 
-        {error && (
-          <div style={{ color: 'red', marginBottom: '15px' }}>
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div style={{ color: 'green', marginBottom: '15px' }}>
-            {success}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          style={{
-            width: '100%',
-            padding: '10px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Create Restaurant
-        </button>
+        <div style={{ marginTop: '32px' }}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+          >
+            Create Restaurant
+          </button>
+        </div>
       </form>
     </div>
   );

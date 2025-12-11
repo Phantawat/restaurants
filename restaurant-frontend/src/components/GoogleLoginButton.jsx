@@ -27,7 +27,7 @@ function GoogleLoginButton() {
   };
 
   return (
-    <div style={{ marginTop: '20px' }}>
+    <div className="google-login-wrapper">
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={handleError}

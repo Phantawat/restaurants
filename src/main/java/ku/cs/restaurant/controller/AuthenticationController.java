@@ -13,7 +13,9 @@ import ku.cs.restaurant.security.JwtUtil;
 import ku.cs.restaurant.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
@@ -67,11 +69,18 @@ public class AuthenticationController {
         // Generate JWT token
         String jwt = jwtUtils.generateToken(userDetails.getUsername());
 
-        // Create HttpOnly cookie (using proxy, so same origin)
-        response.setHeader("Set-Cookie",
-            String.format("token=%s; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Lax", jwt));
+        // Create HttpOnly cookie
+        ResponseCookie cookie = ResponseCookie.from("token", jwt)
+                .path("/")
+                .maxAge(24 * 60 * 60) // 1 day
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .build();
 
-        return ResponseEntity.ok("Login successful");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body("Login successful");
     }
 
     @PostMapping("/signup")
@@ -116,8 +125,15 @@ public class AuthenticationController {
                     jwtUtils.invalidateToken(token);
 
                     // Clear the cookie
-                    response.setHeader("Set-Cookie",
-                        "token=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None");
+                    ResponseCookie cookieToDelete = ResponseCookie.from("token", "")
+                            .path("/")
+                            .maxAge(0)
+                            .httpOnly(true)
+                            .secure(true)
+                            .sameSite("Lax")
+                            .build();
+                    
+                    response.addHeader(HttpHeaders.SET_COOKIE, cookieToDelete.toString());
                     break;
                 }
             }
@@ -154,15 +170,22 @@ public class AuthenticationController {
             // Generate JWT token
             String jwt = jwtUtils.generateToken(user.getUsername());
 
-            // Set HttpOnly cookie (using proxy, so same origin)
-            response.setHeader("Set-Cookie",
-                String.format("token=%s; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Lax", jwt));
+            // Set HttpOnly cookie
+            ResponseCookie cookie = ResponseCookie.from("token", jwt)
+                    .path("/")
+                    .maxAge(24 * 60 * 60) // 1 day
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("Lax")
+                    .build();
 
-            return ResponseEntity.ok(Map.of(
-                    "message", "Google login successful",
-                    "username", user.getUsername(),
-                    "name", user.getName()
-            ));
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(Map.of(
+                            "message", "Google login successful",
+                            "username", user.getUsername(),
+                            "name", user.getName()
+                    ));
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

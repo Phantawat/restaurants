@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import axios from '../api/axios';
 import GoogleLoginButton from '../components/GoogleLoginButton';
+import './Auth.css';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -27,19 +28,32 @@ function Login() {
       console.log('Login successful:', response.data);
       navigate('/restaurant');
     } catch (err) {
-      setError(err.response?.data || 'Login failed. Please try again.');
+      let errorMessage = 'Login failed. Please try again.';
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (typeof err.response.data === 'object') {
+          errorMessage = Object.values(err.response.data).join(', ');
+        }
+      }
+      setError(errorMessage);
       console.error('Login error:', err);
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
+    <div className="auth-container">
       <h2>Login</h2>
+      
+      {error && (
+        <div className="error-message">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '15px' }}>
-          <label htmlFor="username" style={{ display: 'block', marginBottom: '5px' }}>
-            Username:
-          </label>
+        <div className="form-group">
+          <label htmlFor="username">Username</label>
           <input
             type="text"
             id="username"
@@ -47,14 +61,12 @@ function Login() {
             value={formData.username}
             onChange={handleChange}
             required
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            placeholder="Enter your username"
           />
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label htmlFor="password" style={{ display: 'block', marginBottom: '5px' }}>
-            Password:
-          </label>
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
           <input
             type="password"
             id="password"
@@ -62,52 +74,27 @@ function Login() {
             value={formData.password}
             onChange={handleChange}
             required
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            placeholder="Enter your password"
           />
         </div>
 
-        {error && (
-          <div style={{ color: 'red', marginBottom: '15px' }}>
-            {error}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          style={{
-            width: '100%',
-            padding: '10px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+        <button type="submit" className="auth-btn">
           Login
         </button>
       </form>
 
-      <div style={{ margin: '20px 0', textAlign: 'center' }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          margin: '20px 0'
-        }}>
-          <div style={{ flex: 1, height: '1px', backgroundColor: '#ccc' }}></div>
-          <span style={{ padding: '0 10px', color: '#666' }}>OR</span>
-          <div style={{ flex: 1, height: '1px', backgroundColor: '#ccc' }}></div>
-        </div>
+      <div className="divider">
+        <span>OR</span>
+      </div>
 
+      <div style={{ textAlign: 'center' }}>
         <GoogleLoginButton />
       </div>
 
-      <p style={{ marginTop: '15px', textAlign: 'center' }}>
+      <div className="auth-footer">
         Don't have an account?{' '}
-        <a href="/register" style={{ color: '#007bff' }}>
-          Register here
-        </a>
-      </p>
+        <Link to="/register">Register here</Link>
+      </div>
     </div>
   );
 }
